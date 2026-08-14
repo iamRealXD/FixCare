@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.docker/
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Alembic
+alembic/versions/*.pyc
+
+# Frontend (Flutter)
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+
+
+# Android
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/*.iml
+frontend/android/app/build/
+
+# iOS
+frontend/ios/.generated/
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/Pods/
+frontend/ios/*.xcworkspace
+frontend/ios/*.xcodeproj/xcuserdata/
+frontend/ios/*.xcodeproj/project.xcworkspace/

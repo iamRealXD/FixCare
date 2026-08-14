@@ -1,0 +1,64 @@
+name: fixcare
+description: FixCare - Device troubleshooting and diagnosis assistant
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State Management
+  provider: ^6.1.2
+  freezed_annotation: ^2.4.4
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Networking
+  dio: ^5.7.0
+  connectivity_plus: ^6.0.5
+
+  # Local Storage
+  shared_preferences: ^2.3.2
+  flutter_secure_storage: ^9.2.2
+
+  # UI
+  material_design_icons_flutter: ^7.0.7296
+  flutter_svg: ^2.0.10+1
+  cached_network_image: ^3.4.1
+
+  # Utils
+  intl: ^0.20.3
+  uuid: ^4.5.1
+  equatable: ^2.0.5
+  logger: ^2.4.0
+
+  # Code Generation
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  # Code Generation
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+
+  # Testing
+  mockito: ^5.4.4
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

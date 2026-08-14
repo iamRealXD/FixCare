@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fixcare-postgres
+    environment:
+      POSTGRES_DB: fixcare
+      POSTGRES_USER: fixcare
+      POSTGRES_PASSWORD: fixcare_dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fixcare -d fixcare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fixcare-backend
+    environment:
+      APP_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DATABASE_URL: postgresql+asyncpg://fixcare:fixcare_dev_password@postgres:5432/fixcare
+      AI_PROVIDER: mock
+      JWT_SECRET: dev-secret-change-in-production
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:8080","http://10.0.2.2:8080"]'
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
