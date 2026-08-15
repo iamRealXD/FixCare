@@ -8,7 +8,7 @@ from app.services.user_service import UserService
 from app.core.security import create_access_token
 from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
-
+from app.core.config import get_settings
 
 logger = get_logger(__name__)
 router = APIRouter()

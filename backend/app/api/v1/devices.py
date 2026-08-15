@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.core.security import get_current_user_id
 from app.db.database import get_db
 from app.schemas.device import DeviceCreate, DeviceUpdate, DeviceResponse, DeviceListResponse
 from app.schemas.common import ErrorResponse
@@ -18,18 +18,7 @@ def get_request_id(request: Request) -> str:
     return request.headers.get("X-Request-ID", str(uuid.uuid4()))
 
 
-def get_user_id(request: Request) -> uuid.UUID:
-    from app.core.security import decode_access_token
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    return uuid.UUID(payload["sub"])
+
 
 
 @router.post(
@@ -45,9 +34,9 @@ def get_user_id(request: Request) -> uuid.UUID:
 async def create_device(
     data: DeviceCreate,
     request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
     service = DeviceService(db)
     
     try:
@@ -68,10 +57,10 @@ async def create_device(
 )
 async def get_device(
     device_id: uuid.UUID,
-    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
+    
     service = DeviceService(db)
     
     device = await service.get_device(device_id, user_id)
@@ -87,13 +76,12 @@ async def get_device(
     responses={401: {"model": ErrorResponse}},
 )
 async def list_devices(
-    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     category: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
     service = DeviceService(db)
     
     from app.schemas.diagnosis import DeviceCategory
@@ -118,10 +106,9 @@ async def list_devices(
 async def update_device(
     device_id: uuid.UUID,
     data: DeviceUpdate,
-    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
     service = DeviceService(db)
     
     try:
@@ -143,10 +130,9 @@ async def update_device(
 )
 async def delete_device(
     device_id: uuid.UUID,
-    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
     service = DeviceService(db)
     
     try:

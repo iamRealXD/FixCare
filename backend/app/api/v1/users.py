@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -8,24 +8,13 @@ from app.schemas.common import ErrorResponse
 from app.services.user_service import UserService
 from app.core.exceptions import ValidationError, NotFoundError
 from app.core.logging import get_logger
-
+from app.core.security import get_current_user_id
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
-def get_user_id(request: Request) -> uuid.UUID:
-    from app.core.security import decode_access_token
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
-    
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    return uuid.UUID(payload["sub"])
+
 
 
 @router.get(
@@ -34,10 +23,9 @@ def get_user_id(request: Request) -> uuid.UUID:
     responses={401: {"model": ErrorResponse}},
 )
 async def get_current_user(
-    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
     service = UserService(db)
     
     user = await service.get_user(user_id)
@@ -57,10 +45,10 @@ async def get_current_user(
 )
 async def update_current_user(
     data: UserUpdate,
-    request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = get_user_id(request)
+    
     service = UserService(db)
     
     try:

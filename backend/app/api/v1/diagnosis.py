@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.core.security import get_current_user_id
 from app.db.database import get_db
 from app.schemas.diagnosis import (
     DiagnosisRequest,
@@ -44,21 +44,12 @@ def get_request_id(request: Request) -> str:
 async def create_diagnosis(
     request: DiagnosisRequest,
     http_request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
     request_id = get_request_id(http_request)
     
-    from app.core.security import decode_access_token
-    auth_header = http_request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
     
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    user_id = uuid.UUID(payload["sub"])
 
     service = DiagnosisService(db)
     try:
@@ -96,21 +87,12 @@ async def create_diagnosis(
 async def get_diagnosis(
     diagnosis_id: uuid.UUID,
     http_request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
     request_id = get_request_id(http_request)
     
-    from app.core.security import decode_access_token
-    auth_header = http_request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
     
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    user_id = uuid.UUID(payload["sub"])
 
     service = HistoryService(db)
     diagnosis = await service.get_diagnosis_detail(diagnosis_id, user_id)
@@ -128,21 +110,12 @@ async def get_diagnosis(
 )
 async def list_diagnoses(
     http_request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     limit: int = 20,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ):
-    from app.core.security import decode_access_token
-    auth_header = http_request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
     
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    user_id = uuid.UUID(payload["sub"])
 
     service = HistoryService(db)
     diagnoses = await service.list_diagnoses(user_id, limit=limit, offset=offset)
@@ -175,19 +148,10 @@ async def create_feedback(
     diagnosis_id: uuid.UUID,
     feedback: DiagnosisFeedbackRequest,
     http_request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.core.security import decode_access_token
-    auth_header = http_request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authentication required")
     
-    token = auth_header.split(" ")[1]
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    user_id = uuid.UUID(payload["sub"])
 
     service = DiagnosisService(db)
     try:
