@@ -5,6 +5,7 @@ from app.core.security import get_current_user_id
 from app.db.database import get_db
 from app.schemas.diagnosis import (
     DiagnosisRequest,
+    DiagnosisFollowUpRequest,
     DiagnosisResponse,
     DiagnosisListItem,
     DiagnosisFeedbackRequest,
@@ -103,6 +104,52 @@ async def get_diagnosis(
         raise HTTPException(status_code=404, detail="Diagnosis not found")
 
     return await _build_diagnosis_response(diagnosis, db)
+
+
+@router.post(
+    "/{diagnosis_id}/follow-up",
+    response_model=DiagnosisResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+    },
+)
+async def submit_follow_up_answers(
+    diagnosis_id: uuid.UUID,
+    data: DiagnosisFollowUpRequest,
+    http_request: Request,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    request_id = get_request_id(http_request)
+    service = DiagnosisService(db)
+
+    try:
+        diagnosis = await service.submit_follow_up_answers(
+            diagnosis_id,
+            user_id,
+            data.answers,
+        )
+        await db.refresh(diagnosis, ["results"])
+        return await _build_diagnosis_response(diagnosis, db)
+    except ValidationError as e:
+        logger.warning(
+            "diagnosis_follow_up_validation_error",
+            request_id=request_id,
+            error=str(e),
+        )
+        raise HTTPException(status_code=400, detail=e.message)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except AIProviderError as e:
+        logger.error("follow_up_ai_provider_error", request_id=request_id, error=str(e))
+        raise HTTPException(status_code=502, detail="AI provider error")
+    except AIResponseValidationError as e:
+        logger.error("follow_up_ai_response_invalid", request_id=request_id, error=str(e))
+        raise HTTPException(status_code=502, detail="Invalid AI response")
 
 
 @router.get(
@@ -205,8 +252,15 @@ async def _build_diagnosis_response(diagnosis, db: AsyncSession) -> DiagnosisRes
     if diagnosis.results:
         r = diagnosis.results[0]
         result = DiagnosisResultResponse(
-            device=r.possible_causes[0].get("device", {}) if r.possible_causes else {},
-            problem=r.possible_causes[0].get("problem", {}) if r.possible_causes else {},
+            device={
+                "category": diagnosis.device_category,
+                "brand": diagnosis.device_brand,
+                "model": diagnosis.device_model,
+            },
+            problem={
+                "summary": diagnosis.problem_summary,
+                "severity": diagnosis.severity,
+            },
             possible_causes=[PossibleCause(**c) for c in r.possible_causes],
             safe_steps=[SafeStep(**s) for s in r.safe_steps],
             risks=[RiskItem(**rk) for rk in r.risks],

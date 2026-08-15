@@ -58,6 +58,8 @@ class Diagnosis(Base):
         index=True,
     )
     device_category: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    device_brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    device_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     problem_summary: Mapped[str] = mapped_column(Text, nullable=False)
     severity: Mapped[DiagnosisSeverity] = mapped_column(
         SQLEnum(DiagnosisSeverity),

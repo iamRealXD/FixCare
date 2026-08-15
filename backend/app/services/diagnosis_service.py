@@ -1,7 +1,5 @@
-import asyncio
-import time
-from uuid import UUID, uuid4
-from typing import Any
+import json
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -13,6 +11,7 @@ from app.schemas.diagnosis import (
     DiagnosisResultResponse,
     DiagnosisSeverity,
     DiagnosisStatus,
+    FollowUpAnswer,
 )
 from app.db.models.diagnosis import (
     Diagnosis,
@@ -63,6 +62,8 @@ class DiagnosisService:
             user_id=user_id,
             device_id=device.id if device else None,
             device_category=request.device_category.value,
+            device_brand=request.brand,
+            device_model=request.model,
             problem_summary=request.problem_description[:500],
             severity=self._map_severity(screening.risk_level),
             status=DiagnosisStatus.PENDING,
@@ -86,7 +87,7 @@ class DiagnosisService:
                 msg = DiagnosisMessage(
                     diagnosis_id=diagnosis.id,
                     role="user",
-                    content=f"Q: {answer.get('question', '')}\nA: {answer.get('answer', '')}",
+                    content=json.dumps(answer.model_dump()),
                     sequence=i,
                 )
                 self.db.add(msg)
@@ -112,11 +113,21 @@ class DiagnosisService:
         await self.db.commit()
 
         try:
-            request = DiagnosisRequest(
-                device_category=diagnosis.device_category,
-                problem_description=diagnosis.problem_summary,
-                device_id=diagnosis.device_id,
+            request = await self._build_request_from_context(diagnosis)
+            safety_context = "\n".join(
+                [
+                    request.problem_description,
+                    *[
+                        f"{answer.question}: {answer.answer}"
+                        for answer in request.follow_up_answers or []
+                    ],
+                ]
             )
+            screening = safety_service.screen_user_input(
+                safety_context,
+                diagnosis.device_category,
+            )
+            diagnosis.severity = self._map_severity(screening.risk_level)
 
             ai_result, metadata = await self.ai_provider.diagnose(request, diagnosis_id)
 
@@ -126,8 +137,14 @@ class DiagnosisService:
                 raise AIResponseValidationError("AI response failed safety validation", details={"errors": errors})
 
             diagnosis.status = DiagnosisStatus.COMPLETED
-            diagnosis.technician_required = ai_result.technician_required
-            diagnosis.technician_reason = ai_result.technician_reason
+            diagnosis.technician_required = (
+                screening.technician_required or ai_result.technician_required
+            )
+            diagnosis.technician_reason = (
+                screening.technician_reason
+                if screening.technician_required
+                else ai_result.technician_reason
+            )
             diagnosis.ai_provider = metadata.provider
             diagnosis.ai_model = metadata.model
             diagnosis.ai_latency_ms = metadata.latency_ms
@@ -146,7 +163,7 @@ class DiagnosisService:
             )
             self.db.add(result_obj)
 
-            if ai_result.technician_required:
+            if diagnosis.technician_required:
                 diagnosis.status = DiagnosisStatus.ESCALATED
 
             ai_log = AIRequestLog(
@@ -176,6 +193,105 @@ class DiagnosisService:
             await self.db.commit()
             logger.error("diagnosis_failed", diagnosis_id=str(diagnosis_id), error=str(e))
             raise
+
+    async def submit_follow_up_answers(
+        self,
+        diagnosis_id: UUID,
+        user_id: UUID,
+        answers: list[FollowUpAnswer],
+    ) -> Diagnosis:
+        result = await self.db.execute(
+            select(Diagnosis).where(
+                Diagnosis.id == diagnosis_id,
+                Diagnosis.user_id == user_id,
+            )
+        )
+        diagnosis = result.scalar_one_or_none()
+        if not diagnosis:
+            raise ValidationError("Diagnosis not found")
+
+        result_rows = await self.db.execute(
+            select(DiagnosisResult).where(DiagnosisResult.diagnosis_id == diagnosis_id)
+        )
+        for result_row in result_rows.scalars():
+            await self.db.delete(result_row)
+
+        message_rows = await self.db.execute(
+            select(DiagnosisMessage).where(
+                DiagnosisMessage.diagnosis_id == diagnosis_id,
+                DiagnosisMessage.sequence > 0,
+            )
+        )
+        for message in message_rows.scalars():
+            await self.db.delete(message)
+
+        for sequence, answer in enumerate(answers, 1):
+            self.db.add(
+                DiagnosisMessage(
+                    diagnosis_id=diagnosis_id,
+                    role="user",
+                    content=json.dumps(answer.model_dump()),
+                    sequence=sequence,
+                )
+            )
+
+        diagnosis.status = DiagnosisStatus.PENDING
+        diagnosis.completed_at = None
+        diagnosis.technician_required = False
+        diagnosis.technician_reason = None
+        await self.db.commit()
+
+        return await self.run_diagnosis(diagnosis_id)
+
+    async def _build_request_from_context(
+        self,
+        diagnosis: Diagnosis,
+    ) -> DiagnosisRequest:
+        result = await self.db.execute(
+            select(DiagnosisMessage)
+            .where(DiagnosisMessage.diagnosis_id == diagnosis.id)
+            .order_by(DiagnosisMessage.sequence.asc())
+        )
+        messages = list(result.scalars())
+        original_problem = next(
+            (
+                message.content
+                for message in messages
+                if message.sequence == 0
+            ),
+            diagnosis.problem_summary,
+        )
+        follow_up_answers = [
+            answer
+            for message in messages
+            if message.sequence > 0
+            for answer in [self._parse_follow_up_answer(message.content)]
+            if answer is not None
+        ]
+
+        return DiagnosisRequest(
+            device_category=diagnosis.device_category,
+            problem_description=original_problem,
+            device_id=diagnosis.device_id,
+            brand=diagnosis.device_brand,
+            model=diagnosis.device_model,
+            follow_up_answers=follow_up_answers or None,
+        )
+
+    def _parse_follow_up_answer(self, content: str) -> FollowUpAnswer | None:
+        try:
+            data = json.loads(content)
+            return FollowUpAnswer.model_validate(data)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        if content.startswith("Q: ") and "\nA: " in content:
+            question, answer = content[3:].split("\nA: ", maxsplit=1)
+            try:
+                return FollowUpAnswer(question=question, answer=answer)
+            except ValueError:
+                return None
+        return None
 
     async def get_diagnosis(self, diagnosis_id: UUID, user_id: UUID) -> Diagnosis | None:
         result = await self.db.execute(

@@ -58,13 +58,22 @@ class FollowUpQuestion(BaseModel):
     options: list[str] | None = None
 
 
+class FollowUpAnswer(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    answer: str = Field(min_length=1, max_length=5000)
+
+
 class DiagnosisRequest(BaseModel):
     device_category: DeviceCategory
     problem_description: str = Field(min_length=10, max_length=5000)
     device_id: UUID | None = None
     brand: str | None = None
     model: str | None = None
-    follow_up_answers: list[dict[str, str]] | None = None
+    follow_up_answers: list[FollowUpAnswer] | None = None
+
+
+class DiagnosisFollowUpRequest(BaseModel):
+    answers: list[FollowUpAnswer] = Field(min_length=1, max_length=10)
 
 
 class DiagnosisResultResponse(BaseModel):

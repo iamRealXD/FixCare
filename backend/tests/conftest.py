@@ -12,7 +12,7 @@ from app.core.config import Settings
 def test_settings():
     return Settings(
         APP_ENV="testing",
-        DATABASE_URL="postgresql+asyncpg://fixcare:fixcare_test@localhost:5432/fixcare_test",
+        DATABASE_URL="postgresql+asyncpg://fixcare:fixcare_dev_password@localhost:5432/fixcare_test",
         AI_PROVIDER="mock",
         JWT_SECRET="test-secret-key-for-testing-only",
         CORS_ORIGINS=["http://localhost:3000"],
