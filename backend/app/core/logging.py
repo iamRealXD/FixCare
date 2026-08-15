@@ -1,4 +1,5 @@
 import sys
+import logging
 import structlog
 from structlog.stdlib import LoggerFactory
 from structlog.processors import JSONRenderer, TimeStamper, add_log_level
@@ -27,7 +28,7 @@ def configure_logging() -> None:
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, settings.log_level.upper(), structlog.INFO)
+            getattr(logging, settings.log_level.upper(), logging.INFO)
         ),
         logger_factory=LoggerFactory(),
         cache_logger_on_first_use=True,

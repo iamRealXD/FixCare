@@ -293,7 +293,14 @@ class MockAIProvider(AIProvider):
 
     def _check_technician(self, category: str, problem: str) -> tuple[bool, str | None]:
         critical_keywords = ["smoke", "fire", "spark", "burning", "shock", "explos", "swollen", "bulg"]
+
         if any(kw in problem for kw in critical_keywords):
+            if any(kw in problem for kw in ["swollen", "bulg"]):
+                return True, (
+                "Swollen or bulging battery detected. "
+                "Stop using the device immediately and seek professional service."
+            )
+
             return True, "Dangerous condition detected. Immediate professional service required."
 
         if category == "tv" and any(kw in problem for kw in ["power supply", "capacitor", "mainboard", "high voltage"]):

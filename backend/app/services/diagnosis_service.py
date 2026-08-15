@@ -19,6 +19,7 @@ from app.db.models.diagnosis import (
     DiagnosisMessage,
     DiagnosisResult,
     AIRequestLog,
+    RiskLevel,
 )
 from app.db.models.user import User
 from app.db.models.device import Device

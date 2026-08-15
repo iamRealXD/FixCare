@@ -4,7 +4,13 @@ from typing import Any
 
 from app.schemas.diagnosis import RiskLevel
 from app.core.logging import get_logger
-
+RISK_LEVEL_RANK = {
+    RiskLevel.SAFE: 0,
+    RiskLevel.LOW: 1,
+    RiskLevel.MODERATE: 2,
+    RiskLevel.HIGH: 3,
+    RiskLevel.CRITICAL: 4,
+}
 
 logger = get_logger(__name__)
 
@@ -176,12 +182,23 @@ class SafetyService:
             if risk in (SafetyRiskCategory.SMOKE, SafetyRiskCategory.SPARKS, 
                        SafetyRiskCategory.ELECTRICAL_SHOCK, SafetyRiskCategory.BATTERY_SWELLING):
                 max_risk = RiskLevel.CRITICAL
-            elif risk in (SafetyRiskCategory.BURNING_SMELL, SafetyRiskCategory.HIGH_VOLTAGE,
-                         SafetyRiskCategory.BATTERY_LEAKAGE, SafetyRiskCategory.CAPACITOR_DISCHARGE):
-                max_risk = max(max_risk, RiskLevel.HIGH)
-            elif risk in (SafetyRiskCategory.WATER_DAMAGE, SafetyRiskCategory.EXPOSED_WIRING,
-                         SafetyRiskCategory.OVERHEATING):
-                max_risk = max(max_risk, RiskLevel.MODERATE)
+            elif risk in (
+            SafetyRiskCategory.BURNING_SMELL,
+            SafetyRiskCategory.HIGH_VOLTAGE,
+            SafetyRiskCategory.BATTERY_LEAKAGE,
+            SafetyRiskCategory.CAPACITOR_DISCHARGE,
+        ):
+                
+                if RISK_LEVEL_RANK[RiskLevel.HIGH] > RISK_LEVEL_RANK[max_risk]:
+                    max_risk = RiskLevel.HIGH
+
+            elif risk in (
+            SafetyRiskCategory.WATER_DAMAGE,
+            SafetyRiskCategory.EXPOSED_WIRING,
+            SafetyRiskCategory.OVERHEATING,
+        ):
+                if RISK_LEVEL_RANK[RiskLevel.MODERATE] > RISK_LEVEL_RANK[max_risk]:
+                    max_risk = RiskLevel.MODERATE
 
             messages.append(ESCALATION_MESSAGES.get(risk, ""))
             technician_required = True
