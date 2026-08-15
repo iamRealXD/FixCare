@@ -56,6 +56,8 @@ async def create_diagnosis(
         diagnosis = await service.create_diagnosis(user_id, request)
         diagnosis = await service.run_diagnosis(diagnosis.id)
         
+        await db.refresh(diagnosis, ["results"])
+
         result = await _build_diagnosis_response(diagnosis, db)
         return result
 

@@ -129,7 +129,7 @@ class DiagnosisService:
             diagnosis.technician_required = ai_result.technician_required
             diagnosis.technician_reason = ai_result.technician_reason
             diagnosis.ai_provider = metadata.provider
-            diagnosis.ai_model = metadata.model_name
+            diagnosis.ai_model = metadata.model
             diagnosis.ai_latency_ms = metadata.latency_ms
             diagnosis.ai_input_tokens = metadata.input_tokens
             diagnosis.ai_output_tokens = metadata.output_tokens
@@ -152,10 +152,10 @@ class DiagnosisService:
             ai_log = AIRequestLog(
                 diagnosis_id=diagnosis.id,
                 provider=metadata.provider,
-                model=metadata.model_name,
+                model=metadata.model,
                 prompt_version=metadata.prompt_version,
-                request_payload=request.model_dump(),
-                response_payload=ai_result.model_dump(),
+                request_payload=request.model_dump(mode="json"),
+                response_payload=ai_result.model_dump(mode="json"),
                 latency_ms=metadata.latency_ms,
                 input_tokens=metadata.input_tokens,
                 output_tokens=metadata.output_tokens,
