@@ -9,7 +9,7 @@ void main() {
       expect(''.capitalize(), '');
     });
 
-    test     test('capitalizeWords capitalizes each word', () {
+    test('capitalizeWords capitalizes each word', () {
       expect('hello world'.capitalizeWords(), 'Hello World');
       expect('fixcare app'.capitalizeWords(), 'Fixcare App');
     });
