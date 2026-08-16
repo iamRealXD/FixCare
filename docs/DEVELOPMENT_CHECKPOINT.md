@@ -1,6 +1,6 @@
 # FixCare Development Checkpoint
 
-**Last updated:** 2026-08-15  
+**Last updated:** 2026-08-16  
 **Branch:** `main`
 
 ## Current verified baseline
@@ -17,6 +17,8 @@ FixCare is a Flutter + FastAPI + PostgreSQL application with Docker Compose, SQL
 - Alembic initial migration: applied successfully
 - FastAPI backend import smoke test: passed
 - Full backend regression suite: **37 passed, 0 failed**
+- Diagnosis endpoint runtime verification reached **201 Created** during the Flutter integration session
+- Diagnosis result persistence/querying was observed successfully in PostgreSQL logs
 
 Run the regression suite with:
 
@@ -84,43 +86,72 @@ The correct ordering is:
 SAFE < LOW < MODERATE < HIGH < CRITICAL
 ```
 
-An explicit ranking map was added:
-
-```python
-RISK_LEVEL_RANK = {
-    RiskLevel.SAFE: 0,
-    RiskLevel.LOW: 1,
-    RiskLevel.MODERATE: 2,
-    RiskLevel.HIGH: 3,
-    RiskLevel.CRITICAL: 4,
-}
-```
-
-This fixed:
-
-- swollen battery → `CRITICAL`
-- burning smell → `HIGH`
-- water damage → `MODERATE` or higher
-- multiple risks → highest applicable severity
+An explicit ranking map was added. This fixed swollen-battery, burning-smell, water-damage, and multiple-risk severity handling.
 
 ### 7. Swollen-battery escalation reason
 
-The mock AI provider detected swollen batteries correctly but returned only:
+The mock AI provider detected swollen batteries correctly but returned only a generic escalation message. The provider was updated to preserve the hazard context and explicitly reference the swollen/bulging battery.
+
+### 8. Flutter/FastAPI diagnosis JSON contract
+
+Flutter models initially generated camelCase JSON names while FastAPI/Pydantic expects snake_case field names.
+
+The diagnosis request was changed to use an explicit `toJson()` wire contract, including:
 
 ```text
-Dangerous condition detected. Immediate professional service required.
+device_category
+problem_description
+device_id
+brand
+model
+follow_up_answers
 ```
 
-The provider was updated to preserve the hazard context, returning a reason that explicitly references the swollen/bulging battery.
+Response models use explicit `JsonKey` mappings where required, including `device_category`, `problem_summary`, `technician_required`, `technician_reason`, `created_at`, `updated_at`, and `completed_at`.
 
-The targeted test now passes.
+### 9. Redundant datasource serialization bug
+
+The remote datasource was converting already-serialized request data a second time by looking up camelCase keys. This produced null request values and caused FastAPI `422` validation errors:
+
+```text
+Input should be 'mobile', 'laptop' or 'tv'
+Input should be a valid string
+```
+
+The datasource was simplified to:
+
+```dart
+final data = request.toJson();
+```
+
+and sends that payload directly to `/diagnosis`.
+
+### 10. Flutter generic `No Internet` error
+
+Flutter displayed a generic `No Internet` message even though the backend was running. The actual logs showed requests to:
+
+```text
+http://10.0.2.2:8000/api/v1/diagnosis
+```
+
+FastAPI `/docs` and `/openapi.json` returned `200 OK`, and the diagnosis endpoint later returned `201 Created`. The important lesson is to inspect the actual Dio exception/status rather than treating a generic client error as proof of lost internet connectivity.
+
+### 11. Flutter debug connection issue
+
+A later emulator launch produced:
+
+```text
+Error waiting for a debug connection: The log reader stopped unexpectedly
+```
+
+This was treated as a Flutter/Android debug connection issue rather than evidence of a new Dart or backend source failure. No broad rewrite was made.
 
 ## Testing history
 
-The final regression run:
+The documented backend regression baseline:
 
 ```text
-37 passed in 6.50s
+37 passed
 0 failed
 ```
 
@@ -129,6 +160,14 @@ Relevant targeted checks also passed:
 ```text
 3 safety tests passed
 1 swollen-battery AI-provider test passed
+```
+
+During runtime integration, the backend also demonstrated:
+
+```text
+GET /docs -> 200 OK
+GET /openapi.json -> 200 OK
+POST /api/v1/diagnosis -> 201 Created
 ```
 
 ## Docker / PostgreSQL
@@ -166,29 +205,23 @@ docker compose up -d
 
 Docker Compose currently warns that the `version: '3.8'` field is obsolete. Removing that field is a future cleanup task.
 
-## Git status and history
+## Git checkpoint
 
-The repository root is:
+The stable code checkpoint is:
 
 ```text
-Default Project/
+963f792 checkpoint: stable frontend and backend state
 ```
 
-Current branch:
+The 2026-08-16 debugging record is documented in:
 
 ```text
-main
-```
-
-Initial commit:
-
-```text
-96e5b5b chore: initialize FixCare project
+docs/DEVELOPMENT_LOG_2026-08-16.md
 ```
 
 The backend virtual environment is intentionally ignored and must never be committed.
 
-Before the next commit:
+Before future commits:
 
 ```powershell
 git status --short
@@ -218,6 +251,9 @@ frontend/
 .github/
 docker-compose.yml
 README.md
+docs/
+├── DEVELOPMENT_CHECKPOINT.md
+└── DEVELOPMENT_LOG_2026-08-16.md
 progress.txt
 ```
 
@@ -239,94 +275,113 @@ For every bug:
 
 Do not make broad rewrites while debugging.
 
-## Immediate next milestones
+## Current next milestone
 
-### 1. Commit the current stable backend
-
-Review the diff, update documentation, and create a focused commit for the verified fixes.
-
-### 2. Runtime smoke test
-
-Start the stack:
-
-```powershell
-docker compose up -d
-```
-
-Then verify:
+The backend foundation and diagnosis API contract are checkpointed. The next session should focus on runtime verification and the user-facing diagnosis flow:
 
 ```text
-GET /health
-GET /health/live
-GET /health/ready
+Device selection
+→ Problem input
+→ Diagnosis request
+→ Loading state
+→ Follow-up questions when required
+→ Diagnosis result
+→ Safety warnings
+→ History persistence
+→ Feedback
 ```
 
-### 3. FastAPI API documentation
+Before changing networking or serialization code, reproduce the problem and inspect the actual request/response first.
+
+## Safe resume procedure
+
+### 1. Verify repository state
+
+```powershell
+git status
+git log -5 --oneline
+```
+
+### 2. Start PostgreSQL
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+```
+
+### 3. Start FastAPI
+
+From `backend`:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 4. Verify API
 
 Open:
 
 ```text
 http://localhost:8000/docs
+http://localhost:8000/openapi.json
 ```
 
-Verify endpoint schemas.
+### 5. Start Flutter
 
-### 4. Authentication
+From `frontend`:
 
-Verify registration, login, JWT authentication, and current-user endpoints.
+```powershell
+flutter pub get
+flutter run
+```
 
-### 5. Device management
+Do not regenerate code unless source models were intentionally changed.
 
-Verify create/list/retrieve/update/delete device flows.
+### 6. Test diagnosis
 
-### 6. Diagnosis flow
-
-Verify:
+Confirm the request contains non-null:
 
 ```text
-create diagnosis
-→ safety screening
-→ mock AI
-→ safety validation
-→ result persistence
-→ history
-→ feedback
-→ escalation
+device_category
+problem_description
 ```
 
-### 7. Flutter integration
-
-Once the backend contract is verified:
+Then confirm:
 
 ```text
-Flutter
-  ↓
-API client
-  ↓
-FastAPI
-  ↓
-PostgreSQL
+201 Created
 ```
 
-Then build the user-facing FixCare experience.
+### 7. Continue UI work
 
-### 8. Real AI providers
+If the API contract is healthy, continue with the diagnosis result/follow-up UI rather than changing networking or serialization layers.
 
-Only after the mock provider and safety layer are stable, connect real providers such as OpenAI, Gemini, or Anthropic.
+## Do not do this on resume
 
-External AI output must continue to pass through FixCare's safety validation layer.
+Do not immediately run:
 
-## Current checkpoint
+```text
+flutter clean
+flutter pub upgrade
+build_runner clean
+build_runner build
+```
 
-**Backend foundation stable — 37/37 tests passing.**
+and do not rewrite diagnosis models, ApiClient, or backend schemas without a concrete reproducible failure.
 
-Next session:
+## Documentation rule
 
-1. Review `git diff`.
-2. Confirm `.venv` is ignored.
-3. Commit the verified fixes and this documentation.
-4. Start the complete Docker stack.
-5. Run API smoke tests.
-6. Begin Flutter ↔ FastAPI integration.
+Every meaningful bug should be recorded with:
 
-Do not recreate the environment unless a concrete failure requires it.
+```text
+Symptom
+Root cause
+Fix
+Verification
+```
+
+This prevents repeated debugging of the same problem.
+
+## Safety rule for future AI work
+
+Real AI providers must remain behind the FixCare safety validation layer. Do not bypass safety screening or validation when integrating OpenAI, Gemini, Anthropic, or another provider.
